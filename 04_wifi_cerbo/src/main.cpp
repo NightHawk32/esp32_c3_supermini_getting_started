@@ -11,14 +11,21 @@ IPAddress *ip;
 ModbusClientTCPasync *MB;
 
 void setup_wifi() {
-  ip = new IPAddress();
-  ip->fromString(CERBO_IP);
-  MB = new ModbusClientTCPasync(*ip, (uint16_t)CERBO_PORT);
+  if ((WiFi.getMode() != WIFI_STA))
+  {
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect(true, true);
+  }
   delay(10);
   WiFi.begin(MY_WIFI_SSID, MY_WIFI_PASSWORD);
   int counter = 0;
   while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
+    delay(200);
+    if(counter%10 == 0){
+      WiFi.disconnect(true, true);
+      WiFi.begin(MY_WIFI_SSID, MY_WIFI_PASSWORD);
+    }
+
     if (++counter > 100) ESP.restart();
     Serial.print(".");
   }
@@ -26,6 +33,14 @@ void setup_wifi() {
   Serial.println(MY_WIFI_SSID);
   IPAddress wIP = WiFi.localIP();
   Serial.printf("WIFi IP address: %u.%u.%u.%u\n", wIP[0], wIP[1], wIP[2], wIP[3]);
+}
+
+void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
+  Serial.println("Disconnected from WiFi access point");
+  Serial.print("WiFi lost connection. Reason: ");
+  Serial.println(info.wifi_sta_disconnected.reason);
+  Serial.println("Trying to Reconnect");
+  setup_wifi();
 }
 
 void handleData(ModbusMessage response, uint32_t token) 
@@ -58,12 +73,12 @@ void setup() {
   Serial.begin(115200);
   Serial.println("Starting ....");
 
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-
-  Serial.println("Setup done ....");
-
   setup_wifi();
+  WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+
+  ip = new IPAddress();
+  ip->fromString(CERBO_IP);
+  MB = new ModbusClientTCPasync(*ip, (uint16_t)CERBO_PORT);
 
   MB->onDataHandler(&handleData);
 // - provide onError handler function
@@ -72,6 +87,8 @@ void setup() {
   MB->setTimeout(10000);
 // Start ModbusTCP background task
   MB->setIdleTimeout(60000);
+
+  Serial.println("Setup done ....");
 }
 
 void loop() {
