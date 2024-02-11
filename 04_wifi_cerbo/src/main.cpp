@@ -4,15 +4,16 @@
 #include <ModbusClientTCPasync.h>
 #include "../99_include/board.h"
 #include "../99_include/myWifi.h"
+#include "../99_include/cerbo.h"
 
 bool ledState = LED_OFF;
-IPAddress ip = {192, 168, 0, 191};          // IP address of modbus server
-uint16_t port = 33007;                      // port of modbus server
-
-// Create a ModbusTCP client instance
-ModbusClientTCPasync MB(ip, port);
+IPAddress *ip;
+ModbusClientTCPasync *MB;
 
 void setup_wifi() {
+  ip = new IPAddress();
+  ip->fromString(CERBO_IP);
+  MB = new ModbusClientTCPasync(*ip, (uint16_t)CERBO_PORT);
   delay(10);
   WiFi.begin(MY_WIFI_SSID, MY_WIFI_PASSWORD);
   int counter = 0;
@@ -36,7 +37,9 @@ void handleData(ModbusMessage response, uint32_t token)
   Serial.println("");
   uint16_t word1;
   response.get(3, word1);
-  Serial.println(word1);
+  Serial.print("Bat SOC: ");
+  Serial.print(word1);
+  Serial.println("%");
 }
  
 // Define an onError handler function to receive error responses
@@ -62,13 +65,13 @@ void setup() {
 
   setup_wifi();
 
-  MB.onDataHandler(&handleData);
+  MB->onDataHandler(&handleData);
 // - provide onError handler function
-  MB.onErrorHandler(&handleError);
+  MB->onErrorHandler(&handleError);
 // Set message timeout to 2000ms and interval between requests to the same host to 200ms
-  MB.setTimeout(10000);
+  MB->setTimeout(10000);
 // Start ModbusTCP background task
-  MB.setIdleTimeout(60000);
+  MB->setIdleTimeout(60000);
 }
 
 void loop() {
@@ -79,7 +82,7 @@ void loop() {
 
     Serial.printf("sending request with token %d\n", (uint32_t)lastMillis);
     Error err;
-    err = MB.addRequest((uint32_t)lastMillis, 100, READ_HOLD_REGISTER, 843, 1);
+    err = MB->addRequest((uint32_t)lastMillis, 100, READ_HOLD_REGISTER, 843, 1);
     if (err != SUCCESS) {
       ModbusError e(err);
       Serial.printf("Error creating request: %02X - %s\n", (int)e, (const char *)e);
