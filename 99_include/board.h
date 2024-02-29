@@ -7,4 +7,8 @@
 
 #define PIN_BOOT 9
 
+#define PIN_SDA D4
+#define PIN_SCL D5
+#define PIN_TOUCH_RESET D7
+
 #endif
