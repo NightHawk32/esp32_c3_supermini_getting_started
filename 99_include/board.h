@@ -9,6 +9,7 @@
 
 #define PIN_SDA D4
 #define PIN_SCL D5
+#define PIN_TOUCH_INT D6
 #define PIN_TOUCH_RESET D7
 
 #endif

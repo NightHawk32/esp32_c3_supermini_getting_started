@@ -31,34 +31,39 @@ void ICNT_Reset(void)
 
 void ICNT_Write(uint16_t Reg, char *Data, uint8_t len)
 {
-  Wire.beginTransmission(ICNT_ADDR);
-	Wire.write(Reg);
-  for(int i=0; i<len; i++){
-    Wire.write(Data[i]);
-  }  
-  Wire.end();
+	Wire.beginTransmission(ICNT_ADDR);
+	Wire.write(highByte(Reg));
+	Wire.write(lowByte(Reg));
+	for(int i=0; i<len; i++){
+		Wire.write(Data[i]);
+	}  
+	Wire.endTransmission();
 }
 
 void ICNT_Read(uint16_t Reg, char *Data, uint8_t len)
 {
-  Wire.beginTransmission(ICNT_ADDR);
-	Wire.write(Reg);
-  for(int i=0; i<len; i++){
-    Data[i] = Wire.read();
-  }  
-  Wire.end();
+	Wire.beginTransmission(ICNT_ADDR);
+	Wire.write(highByte(Reg));
+	Wire.write(lowByte(Reg));
+	Wire.endTransmission();
+
+	Wire.requestFrom(ICNT_ADDR, len);
+	for(int i=0; i<len; i++){
+		Data[i] = Wire.read();
+	}  
+	Wire.endTransmission();
 }
 
 void ICNT_ReadVersion(void)
 {
 	char buf[4];
 	ICNT_Read(0x000a, buf, 4);
-	Serial.print("IC Version is");
-  Serial.print(buf[0], HEX);
-  Serial.println(buf[1], HEX);
-  Serial.print("FW Version is");
-  Serial.print(buf[2], HEX);
-  Serial.println(buf[3], HEX);
+	Serial.print("IC Version is 0x");
+	Serial.print(buf[0], HEX);
+	Serial.println(buf[1], HEX);
+	Serial.print("FW Version is 0x");
+	Serial.print(buf[2], HEX);
+	Serial.println(buf[3], HEX);
 }
 
 void ICNT_Init(void)
@@ -77,7 +82,7 @@ uint8_t ICNT_Scan(void)
 		if (buf[0] == 0x00) {		//No new touch
 			ICNT_Write(0x1001, mask, 1);
 			delay(1);
-			// printf("buffers status is 0 \r\n");
+			//Serial.println("buffers status is 0");
 			return 1;
 		}
 		else {
@@ -85,7 +90,7 @@ uint8_t ICNT_Scan(void)
 			if (ICNT86_Dev_Now.TouchCount > 5 || ICNT86_Dev_Now.TouchCount < 1) {
 				ICNT_Write(0x1001, mask, 1);
 				ICNT86_Dev_Now.TouchCount = 0;
-				// printf("TouchCount number is wrong \r\n");
+				//Serial.println("TouchCount number is wrong");
 				return 1;
 			}
 			ICNT_Read(0x1002, buf, ICNT86_Dev_Now.TouchCount*7);
@@ -102,34 +107,20 @@ uint8_t ICNT_Scan(void)
 				ICNT86_Dev_Now.TouchEvenid[i] = buf[6 + 7*i];
 			}
 			
-			for(uint8_t i=0; i<ICNT86_Dev_Now.TouchCount; i++)
+			for(uint8_t i=0; i<ICNT86_Dev_Now.TouchCount; i++){
 				Serial.print("Point");
-        Serial.print(i+1,DEC);
-        Serial.print(": X is"),;
-        Serial.print(ICNT86_Dev_Now.X[i],DEC);
-        Serial.print(" ,Y is");
-        Serial.print( ICNT86_Dev_Now.Y[i],DEC);
-        Serial.print(" ,Pressure is");
-        Serial.println(ICNT86_Dev_Now.P[i],DEC);
+				Serial.print(i+1,DEC);
+				Serial.print(": X is ");
+				Serial.print(ICNT86_Dev_Now.X[i],DEC);
+				Serial.print(" ,Y is ");
+				Serial.print( ICNT86_Dev_Now.Y[i],DEC);
+				Serial.print(" ,Pressure is ");
+				Serial.println(ICNT86_Dev_Now.P[i],DEC);
+			}
 			return 0;
 		}
 	}
 	return 1;
-}
-
-
-void setup() {
-  pinMode(PIN_LED, OUTPUT);
-  digitalWrite(PIN_LED, LED_ON);
-
-  pinMode(PIN_TOUCH_RESET, OUTPUT);
-
-  Serial.begin(115200);
-  Serial.println("Starting ....");
-  Wire.begin (PIN_SDA, PIN_SCL);
-  ICNT_Reset();
-  Serial.println("Setup done ....");
-
 }
 
 void Scanner ()
@@ -157,8 +148,32 @@ void Scanner ()
   Serial.println (" device(s).");
 }
 
-void loop()
+void IRAM_ATTR touchInt()
 {
-  Scanner ();
-  delay (2000);
+	ICNT86_Dev_Now.Touch = 1;
+	//Serial.println("touch!");
+}
+
+void setup() {
+	pinMode(PIN_LED, OUTPUT);
+	digitalWrite(PIN_LED, LED_ON);
+
+	pinMode(PIN_TOUCH_RESET, OUTPUT);
+	pinMode(PIN_TOUCH_INT, INPUT);
+	attachInterrupt(PIN_TOUCH_INT, touchInt, FALLING);
+
+	Serial.begin(115200);
+	Serial.println("Starting ....");
+	Wire.begin (PIN_SDA, PIN_SCL);
+	ICNT_Reset();
+	Scanner ();
+	ICNT_Init();
+	Serial.println("Setup done ....");
+
+}
+
+void loop()
+{	
+	ICNT_Scan();
+	//Sdelay(500);
 }
