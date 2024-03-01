@@ -7,6 +7,13 @@
 
 #define PIN_BOOT 9
 
+#define PIN_EPD_BUSY D3
+#define PIN_EPD_RST D2
+#define PIN_EPD_DC D1
+#define PIN_EPD_CS D0
+#define PIN_EPD_CLK D8
+#define PIN_EPD_MOSI D10
+
 #define PIN_SDA D4
 #define PIN_SCL D5
 #define PIN_TOUCH_INT D6
