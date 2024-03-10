@@ -11,7 +11,7 @@
 #define PIN_EPD_RST D2
 #define PIN_EPD_DC D1
 #define PIN_EPD_CS D0
-#define PIN_EPD_CLK D8
+#define PIN_EPD_CLK 1
 #define PIN_EPD_MOSI D10
 
 #define PIN_SDA D4
