@@ -5,10 +5,38 @@
 #include "../99_include/board.h"
 #include "../99_include/myWifi.h"
 #include "../99_include/cerbo.h"
+#include "../lib/VictronModbusRegs.h"
 
 bool ledState = LED_OFF;
 IPAddress *ip;
 ModbusClientTCPasync *MB;
+
+void UpdateRegister(VictronModbusRegister *reg, uint32_t token, ServiceName serviceName){
+  //Serial.printf("sending request with token %d\n", (uint32_t)token);
+  Error err;
+  err = MB->addRequest((uint32_t)token, (int)serviceName, READ_HOLD_REGISTER, reg->GetAddress(), 1);
+  if (err != SUCCESS) {
+    ModbusError e(err);
+    Serial.printf("Error creating request: %02X - %s\n", (int)e, (const char *)e);
+  }else{
+    reg->SetToken(token);
+  }
+}
+
+VictronModbusRegister BatteryVoltage = VictronModbusRegister("Battery SOC", 843, ServiceName::System, 1, "%", &UpdateRegister);
+VictronModbusRegister BatteryCurrent = VictronModbusRegister("Battery Current", 841, ServiceName::System, 0.1, "A", &UpdateRegister, true);
+VictronModbusRegister BatteryTemp = VictronModbusRegister("Battery Temperature", 262, ServiceName::Battery, 0.1, "°C", &UpdateRegister, true);
+VictronModbusRegister BatteryPower = VictronModbusRegister("Battery Power", 842, ServiceName::System, 1, "W", &UpdateRegister, true);
+VictronModbusRegister DC_PV_Power = VictronModbusRegister("DC - PV Power", 850, ServiceName::System, 1, "W", &UpdateRegister, true);
+VictronModbusRegister BatteryState = VictronModbusRegister("Battery State", 844, ServiceName::System, 1, "W", &UpdateRegister, false, true, 3, new String[3]{"idle","charging","discharging"});
+
+VictronModbusRegister GridPowerL1 = VictronModbusRegister("Grid Power L1", 820, ServiceName::System, 1, "W", &UpdateRegister, true);
+VictronModbusRegister GridPowerL2 = VictronModbusRegister("Grid Power L2", 821, ServiceName::System, 1, "W", &UpdateRegister, true);
+VictronModbusRegister GridPowerL3 = VictronModbusRegister("Grid Power L3", 822, ServiceName::System, 1, "W", &UpdateRegister, true);
+
+VictronModbusRegister AcOutPowerL1 = VictronModbusRegister("AC Output Power L1", 817, ServiceName::System, 1, "W", &UpdateRegister, true);
+VictronModbusRegister AcOutPowerL2 = VictronModbusRegister("AC Output Power L2", 818, ServiceName::System, 1, "W", &UpdateRegister, true);
+VictronModbusRegister AcOutPowerL3 = VictronModbusRegister("AC Output Power L3", 819, ServiceName::System, 1, "W", &UpdateRegister, true);
 
 void setup_wifi() {
   if ((WiFi.getMode() != WIFI_STA))
@@ -45,16 +73,17 @@ void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
 
 void handleData(ModbusMessage response, uint32_t token) 
 {
-  Serial.printf("Response: serverID=%d, FC=%d, Token=%08X, length=%d:\n", response.getServerID(), response.getFunctionCode(), token, response.size());
-  for (auto& byte : response) {
+  //Serial.printf("Response: serverID=%d, FC=%d, Token=%08X, length=%d:\n", response.getServerID(), response.getFunctionCode(), token, response.size());
+  /*for (auto& byte : response) {
     Serial.printf("%02X ", byte);
+  }*/
+  for(int i = 0;i < RegisterList::getInstance().GetNumRegisters();i++){
+    VictronModbusRegister *reg = RegisterList::getInstance().GetRegister(i);
+    if(reg->GetToken() == token){
+      reg->HandleData(response.data(), response.size());
+      Serial.println(reg->GetNameWithVal());
+    }
   }
-  Serial.println("");
-  uint16_t word1;
-  response.get(3, word1);
-  Serial.print("Bat SOC: ");
-  Serial.print(word1);
-  Serial.println("%");
 }
  
 // Define an onError handler function to receive error responses
@@ -67,6 +96,19 @@ void handleError(Error error, uint32_t token)
 }
 
 void setup() {
+  RegisterList::getInstance().AddRegister(&BatteryVoltage);
+  RegisterList::getInstance().AddRegister(&BatteryCurrent);
+  RegisterList::getInstance().AddRegister(&BatteryTemp);
+  RegisterList::getInstance().AddRegister(&BatteryPower);
+  RegisterList::getInstance().AddRegister(&DC_PV_Power);
+  RegisterList::getInstance().AddRegister(&BatteryState);
+  RegisterList::getInstance().AddRegister(&GridPowerL1);
+  RegisterList::getInstance().AddRegister(&GridPowerL2);
+  RegisterList::getInstance().AddRegister(&GridPowerL3);
+  RegisterList::getInstance().AddRegister(&AcOutPowerL1);
+  RegisterList::getInstance().AddRegister(&AcOutPowerL2);
+  RegisterList::getInstance().AddRegister(&AcOutPowerL3);
+
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, ledState);
 
@@ -97,13 +139,17 @@ void loop() {
     lastMillis = millis();
 
 
-    Serial.printf("sending request with token %d\n", (uint32_t)lastMillis);
+   /* Serial.printf("sending request with token %d\n", (uint32_t)lastMillis);
     Error err;
     err = MB->addRequest((uint32_t)lastMillis, 100, READ_HOLD_REGISTER, 843, 1);
     if (err != SUCCESS) {
       ModbusError e(err);
       Serial.printf("Error creating request: %02X - %s\n", (int)e, (const char *)e);
-    }
+    }*/
+
+    //BatteryVoltage.UpdateRegister(); 
+
+    RegisterList::getInstance().UpdateAllRegisters();
 
   }
   if(WiFi.status() != WL_CONNECTED){
